@@ -1,0 +1,48 @@
+{
+  "dependencies": {
+    "@math.gl/core": "^3.5.6",
+    "dat.gui": "^0.7.7",
+    "express": "^4.17.1",
+    "socket.io": "^4.3.1",
+    "socket.io-client": "^4.3.2",
+    "three": "^0.134.0",
+    "twgl-base.js": "^4.21.2"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "build": "webpack"
+  },
+  "name": "spacefight",
+  "description": "Multiplayer Space Fighting Game",
+  "version": "1.0.0",
+  "main": "server.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Ch1pless/spacefight.git"
+  },
+  "keywords": [
+    "multiplayer",
+    "space",
+    "fighting",
+    "game"
+  ],
+  "author": "Ch1pless",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Ch1pless/spacefight/issues"
+  },
+  "homepage": "https://github.com/Ch1pless/spacefight#readme",
+  "devDependencies": {
+    "@babel/core": "^7.16.0",
+    "@babel/preset-env": "^7.16.0",
+    "babel-loader": "^8.2.3",
+    "dotenv": "^10.0.0",
+    "dotenv-webpack": "^7.0.3",
+    "webpack": "^5.61.0",
+    "webpack-cli": "^4.9.1",
+    "webpack-dev-middleware": "^5.2.1",
+    "webpack-dev-server": "^4.4.0",
+    "webpack-glsl-loader": "^1.0.1",
+    "webpack-hot-middleware": "^2.25.1"
+  }
+}
