@@ -5,6 +5,7 @@ const webpack = require("webpack");
 const webpack_MW = require("webpack-dev-middleware");
 const webpack_HMW = require("webpack-hot-middleware");
 
+// Server Configuration and Deployment
 require("dotenv").config();
 
 const isProduction = process.env.NODE_ENV === "production";
@@ -34,8 +35,10 @@ app.use(express.static("./public"));
 
 app.get("/", (req, res) => { res.sendFile('index.html'); });
 
-io.on("connection", (client) => { console.log(`User ${client.id} connected at ${client.handshake.address}.`); });
 
 httpServer.listen(port);
 
 console.log(`Server listening on port: ${port}`);
+
+// Socket.io management
+io.on("connection", client => { console.log(`User ${client.id} connected at ${client.handshake.address}.`); });

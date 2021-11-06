@@ -1,23 +1,21 @@
-
-import { EventDispatcher } from "./EventDispatcher.js";
+// import { EventDispatcher } from "./EventDispatcher.js";
 import { UUID } from "../math/UUID.js";
 import { Matrix4, Matrix3, Quaternion, Vector3, Euler } from "@math.gl/core";
 
 
-let _object3DId = 0;
+let _base3DId = 0;
 
-export class Object3D extends EventDispatcher {
+export class Base3D {
 
   constructor() {
-    super();
+    // super();
 
-    this.id = _object3DId++;
+    this.id = _base3DId++;
     this.name = "";
     this.uuid = UUID.generate(); // see if we'll need it
 
-    this.position = new Vector3();
-    this.rotation =  new Euler();
-    this.quaternion = new Quaternion();
+    this.position = new Vector3(0, 0, 0);
+    this.rotation =  new Matrix4().identity();
     this.scale = new Vector3(1, 1, 1);
 
     this.up = new Vector3(0, 1, 0);
@@ -26,7 +24,6 @@ export class Object3D extends EventDispatcher {
     this.children = [];
     
     this.visible = true;
-    this.renderOrder = 0;
     this.layers = [];
     // this.frustumCulled = true; may need it, everything in this case should be frustum culled
     
@@ -54,11 +51,11 @@ export class Object3D extends EventDispatcher {
 
   setParent(parent) {
     if (this.parent !== null)
-      this.removeParent();
+      this.removeFromParent();
     this.parent = parent;
   }
 
-  removeParent() {
+  removeFromParent() {
     if (this.parent !== null) {
       const to_remove = this.parent.children.findIndex((element) => { return element === this; });
       this.parent.children.splice(to_remove, 1);
@@ -70,7 +67,7 @@ export class Object3D extends EventDispatcher {
     // copied to avoid issues with removal from this.children
     const children = [...this.children];
     for (const child of children)
-      child.removeParent();
+      child.removeFromParent();
   }
 
   applyMatrix(matrix4) {
@@ -78,58 +75,40 @@ export class Object3D extends EventDispatcher {
 
     this.matrix.multiplyLeft(matrix4);
 
-    this.position = this.matrix.getTranslation();
-    this.rotation = this.matrix.getRotation();
-    this.scale = this.matrix.getScale();
+    this.matrix.getTranslation(this.position);
+    this.matrix.getRotation(this.rotation);
+    this.matrix.getScale(this.scale);
   }
 
-  setRotationFromAxisAngle(axis, rad) {
-    this.quaternion.setFromAxisAngle(axis, rad);
-  }
-
-  setRotationFromQuaternion(quat) {
-    this.quaternion.copy(quat);
-  }
-
-  rotateOnAxis(axis, rad) {
-    const quat = new Quaternion().setFromAxisAngle(axis, rad);
-    this.quaternion = Quaternion.multiplyRight(quat);
-  }
-
+  // translates along the axis in local space
   translateOnAxis(axis, dist) {
-    const trans = axis.copy().transformByQuaternion(this.quaternion);
-    this.position.add(trans.multiplyScalar(dist));
+    const trans = axis.copy().transform(this.rotation);
+    this.position.add(trans.scale(dist));
   }
 
   lookAt(vect) {
-    const target = vect.clone();
-    const position = this.matrixWorld.getTranslation();
-
+    const target = new Vector3(vect[0], vect[1], vect[2]);
+    const position = new Vector3(this.matrixWorld.getTranslation());
+    
     const lookMatrix = new Matrix4().lookAt(target, position, this.up);
 
-    this.quaternion.fromMatrix3(lookMatrix.getRotationMatrix3());
-
-    if (this.parent) {
-      const parentRotation = this.parent.matrixWorld.getRotationMatrix3();
-      const quat = new Quaternion().fromMatrix3(parentRotation.getRotationMatrix3());
-      this.quaternion.multiplyLeft(quat.invert());
+    const lookRotation = new Matrix4(lookMatrix.getRotation());
+    
+    if (lookRotation.validate())
+      this.rotation = lookRotation;
+    if (lookRotation.validate() && this.parent) {
+      const parentRotation = this.parent.matrixWorld.getRotationMatrix();
+      this.rotation.multiplyLeft(parentRotation.invert());
     }
-  }
-
-  localToWorld(vect) {
-    return vect.transform(this.matrixWorld);
-  }
-
-  worldToLocal(vect) {
-    return vect.transform(this.matrixWorld.clone().invert());
   }
 
   updateMatrix() {
     const T = new Matrix4().translate(this.position);
-    const R = this.rotation.getRotationMatrix(new Matrix4())
+    const R = this.rotation.clone();
     const S = new Matrix4().scale(this.scale);
 
     this.matrix = T.multiplyRight(R.multiplyRight(S));
+    this.normalMatrix = this.matrix.clone().invert().transpose().getRotationMatrix3();
     this.matrixWorldNeedsUpdate = true;
   }
 
@@ -187,6 +166,32 @@ export class Object3D extends EventDispatcher {
         child.clone().setParent(this);
   }
 
-  
+  // TODO: Complete
+  convertFromObject3D(object3D) {
+    this.name = object3D.name;
+
+    for (const child of object3D.children) {
+      const newChild = new Base3D();
+      newChild.setParent(this);
+      newChild.convertFromObject3D(child);
+    }
+
+    
+    this.position = new Vector3(object3D.position);
+    this.rotation = new Matrix4().fromQuaternion(object3D.quaternion);
+    this.scale = new Vector3(object3D.scale);
+
+    this.up = new Vector3(object3D.up);
+
+    this.matrix = new Matrix4(object3D.matrix);
+    this.matrixWorld = new Matrix4(object3D.matrixWorld);
+    
+    this.normalMatrix = new Matrix3(object3D.normalMatrix);
+    
+    this.castShadow = object3D.castShadow;
+    this.recieveShadow = object3D.recieveShadow;
+
+    this.userData = JSON.parse(JSON.stringify(object3D.userData));
+  }
   
 }

@@ -1,8 +1,8 @@
 import { io } from "socket.io-client";
-import testFunc from "./game/test.js";
 import * as twgl from "twgl-base.js";
-import { Matrix4 } from "@math.gl/core";
+import { Matrix4, Vector3, toRadians } from "@math.gl/core";
 import Stars from "./space/space.js";
+import test from "./game/test.js";
 
 const IO = {
   init: () => {
@@ -39,7 +39,20 @@ const App = {
     console.log('Application started');
     App.gl = twgl.getContext(document.getElementById("game"));
     App.stars = new Stars(App.gl, 10000, 10000);
+    App.box = new test(App.gl, 2);
+    App.box.position = new Vector3(5., -3., -15.);
 
+    document.addEventListener('keydown', event => {
+      if (event.key == 'ArrowUp') {
+        App.box.rotation.rotateAxis(toRadians(-0.5), new Vector3(1, 0, 0));
+      } else if (event.key == 'ArrowDown') {
+        App.box.rotation.rotateAxis(toRadians(0.5), new Vector3(1, 0, 0));
+      } else if (event.key == 'ArrowLeft') {
+        App.box.rotation.rotateAxis(toRadians(-0.5), new Vector3(0, 1, 0));
+      } else if (event.key == 'ArrowRight') {
+        App.box.rotation.rotateAxis(toRadians(0.5), new Vector3(0, 1, 0));
+      }
+    });
   },
 
   resizeGLToScreenSize() {
@@ -55,13 +68,43 @@ const App = {
   draw: () => {
     App.resizeGLToScreenSize();
     App.stars.renderStars(frameCount);
+    App.box.lookAt(new Vector3(0, 1, 0).transformAsPoint(App.stars.rotation));
+    App.box.render();
     frameCount++;
-    // restrain frameCount from overflowing
-    if (frameCount >= 10000)
-      frameCount = 0;
     requestAnimationFrame(App.draw);
   }
 };
+
+const Game = {
+
+  init: () => {
+
+  },
+
+  physics: () => {
+
+  },
+
+  input_events: () => {
+
+  },
+
+  game_logic: () => {
+
+  },
+
+  scene_rendering: () => {
+
+  },
+
+  gui_rendering: () => {
+
+  },
+
+  decomissioning: () => {
+
+  }
+}
 
 App.init();
 IO.init();

@@ -1,8 +1,8 @@
 #version 300 es
 precision mediump float;
 
-uniform mat4 u_projection;
-uniform mat4 u_rotation;
+uniform mat4 u_projectionMatrix;
+uniform mat4 u_modelMatrix;
 
 in vec3 position;
 
@@ -19,8 +19,7 @@ highp float rand(vec2 co)
 }
 
 void main() {
-  vec4 mPosition = u_projection * u_rotation * vec4(position, 1.);
-  fragPosition = position;
+  vec4 mPosition = u_projectionMatrix * u_modelMatrix * vec4(position, 1.);
   gl_Position = mPosition;
-  gl_PointSize = rand(position.xy) * 5.;
+  gl_PointSize = rand(position.xy) * 2.;
 }

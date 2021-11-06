@@ -1,8 +1,10 @@
 import * as twgl from "twgl-base.js";
-import { Vector3, Matrix4 } from "@math.gl/core";
-
-export default class {
+import { Vector3, Matrix4, toRadians } from "@math.gl/core";
+import { Base3D } from "../engine/core/Base3D";
+export default class extends Base3D {
   constructor(gl, amount = 1000, radFromCenter = 1) {
+    super();
+
     this.gl = gl;
     this.gl.enable(this.gl.DEPTH_TEST);
     this.gl.clearColor(0, 0, 0, 1);
@@ -32,11 +34,14 @@ export default class {
 
     this.gl.useProgram(this.programInfo.program);
 
-    let radians = Math.PI * (frameCount * 0.1 % 360) / 180;
+    let radians = toRadians(frameCount)*0.1;
+    this.rotation = new Matrix4().rotateXYZ([-radians, 0, -radians]);
+
+    this.updateMatrix();
 
     const uniforms = {
-      u_projection: new Matrix4().perspective({aspect: this.gl.canvas.width / this.gl.canvas.height, far: Infinity}),
-      u_rotation: new Matrix4().rotateXYZ([-radians, 0, -radians])
+      u_projectionMatrix: new Matrix4().perspective({aspect: this.gl.canvas.width / this.gl.canvas.height, far: Infinity}),
+      u_modelMatrix: this.matrix
     };
 
     twgl.setUniforms(this.programInfo, uniforms);
