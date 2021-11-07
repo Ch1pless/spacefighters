@@ -8,7 +8,7 @@ const loader = new OBJLoader();
 
 let ship_obj = require('../assets/Viper-mk-IV-fighter/Viper-mk-IV-fighter.obj');
 let ship_model;
-loader.load(ship_obj.default, obj => {ship_model = obj;}, undefined, error => {console.log(error); });
+loader.load(ship_obj, obj => { ship_model = obj; }, undefined, error => {console.log(error); });
 
 let counter  = 0;
 function printShip() {
