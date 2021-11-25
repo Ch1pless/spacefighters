@@ -1,11 +1,13 @@
 const [resolve, dirname] = [require('path').resolve, require('path').dirname];
 const webpack = require('webpack');
 require('dotenv').config();
+require('regenerator-runtime/runtime.js');
+require('core-js/stable');
 
 module.exports = {
   mode: 'development',
-  target: 'web',
-  entry: ['./src/app.js', 'webpack-hot-middleware/client'],
+  target: ['web', 'es5'],
+  entry: ['regenerator-runtime/runtime.js', 'core-js/stable', 'webpack-hot-middleware/client', './src/app.js'],
   output: {
     filename: 'app.js',
     path: resolve(dirname('.'), 'public'),

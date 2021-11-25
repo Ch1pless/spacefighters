@@ -1,8 +1,8 @@
 import * as twgl from "twgl-base.js";
-import { Vector3, Matrix4, toRadians } from "@math.gl/core";
-import { Base3D } from "../engine/core/Base3D";
-export default class extends Base3D {
-  constructor(gl, amount = 1000, radFromCenter = 1) {
+import { Vector3, Matrix4 } from "@math.gl/core";
+import { Object3D } from "../engine/core/Object3D";
+export default class extends Object3D {
+  constructor(gl, amount = 1000, radFromCenter = 100_000) {
     super();
 
     this.gl = gl;
@@ -28,19 +28,17 @@ export default class extends Base3D {
     this.bufferInfo = twgl.createBufferInfoFromArrays(this.gl, {position: this.stars});
   }
 
-  renderStars(frameCount = 0) {
+  renderStars(camera) {
     this.gl.viewport(0, 0, this.gl.canvas.width, this.gl.canvas.height);
     this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
 
     this.gl.useProgram(this.programInfo.program);
 
-    let radians = toRadians(frameCount)*0.1;
-    this.rotation = new Matrix4().rotateXYZ([-radians, 0, -radians]);
-
     this.updateMatrix();
 
     const uniforms = {
       u_projectionMatrix: new Matrix4().perspective({aspect: this.gl.canvas.width / this.gl.canvas.height, far: Infinity}),
+      u_viewMatrix: camera.viewMatrix,
       u_modelMatrix: this.matrix
     };
 
