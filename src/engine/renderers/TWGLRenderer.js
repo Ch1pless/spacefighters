@@ -172,8 +172,6 @@ export default class TWGLRenderer {
 
     this.setLightUniforms(uniforms);
 
-    
-    
     if (mat.userData.textureMap !== undefined)
       uniforms["u_textureMap"] = textureMap;
     

@@ -17,7 +17,7 @@ uniform vec3 u_specularColor;
 uniform float u_shininess;
 uniform float u_specular;
 uniform int u_numLights;
-uniform Light[4] lights; 
+uniform Light[4] u_lights; 
 
 in vec3 fNormal;
 in vec3 fPosition;
@@ -50,14 +50,14 @@ vec3 computeSpotlight(Light l) {
 vec3 computeColor() {
   vec3 color;
   for (int i = 0; i < u_numLights; ++i) {
-    if (lights[i].type == -1)
+    if (u_lights[i].type == -1)
       continue;
-    else if (lights[i].type == 0)
-      color += computeAmbient(lights[i]);
-    else if (lights[i].type == 1)
-      color += computeSimple(lights[i]);
+    else if (u_lights[i].type == 0)
+      color += computeAmbient(u_lights[i]);
+    else if (u_lights[i].type == 1)
+      color += computeSimple(u_lights[i]);
     else
-      color += computeSpotlight(lights[i]);
+      color += computeSpotlight(u_lights[i]);
   }
   return color;
 }
