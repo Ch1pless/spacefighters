@@ -1,9 +1,7 @@
+
 const express = require("express");
 const createServer = require("http").createServer;
 const Server = require("socket.io").Server;
-const webpack = require("webpack");
-const webpack_MW = require("webpack-dev-middleware");
-const webpack_HMW = require("webpack-hot-middleware");
 
 // Server Configuration and Deployment
 require("dotenv").config();
@@ -16,29 +14,33 @@ const io_options = {
   methods: ["GET", "POST"]
 };
 
-const webpack_config = require("./webpack.config.js");
-const compiler = webpack(webpack_config);
+
 
 const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer, io_options);
 
+if (!isProduction) {
+  const webpack = require("webpack");
+  const webpack_MW = require("webpack-dev-middleware");
+  const webpack_HMW = require("webpack-hot-middleware");
+  const webpack_config = require("./webpack.config.js");
+  const compiler = webpack(webpack_config);
 
-app.use( webpack_MW(compiler, {
-    publicPath: webpack_config.output.publicPath,
-  }) 
-);
-  
-app.use(webpack_HMW(compiler));
+  app.use( webpack_MW(compiler, {
+      publicPath: webpack_config.output.publicPath,
+    }) 
+  );
+    
+  app.use(webpack_HMW(compiler));
+}
   
 app.use(express.static("./public"));
 
 app.get("/", (req, res) => { res.sendFile('index.html'); });
 
-
 httpServer.listen(port);
 
 console.log(`Server listening on port: ${port}`);
-
 // Socket.io management
 io.on("connection", client => { console.log(`User ${client.id} connected at ${client.handshake.address}.`); });

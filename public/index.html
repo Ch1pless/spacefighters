@@ -10,8 +10,13 @@
 </head>
 <body>
   <main>
-    <!-- <canvas id="ui"></canvas> -->
-    <canvas id="game"></canvas>
+    <div id="load">
+      <div class="ring">Loading
+        <span></span>
+      </div>
+    </div>
+    <canvas id="ui" class="hide"></canvas>
+    <canvas id="game" style="z-index: -100"></canvas>
   </main>
   <script src="app.js"></script>
 </body>
