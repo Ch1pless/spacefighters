@@ -180,7 +180,6 @@ export default class TWGLRenderer {
       uniforms["u_shininess"] = mat.shininess;
       uniforms["u_specular"] = 0.2;
     }
-    // console.log(JSON.stringify(uniforms));
 
     let programInfo = this.createProgramInfo(mat, gl);
 

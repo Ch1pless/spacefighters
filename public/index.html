@@ -15,7 +15,20 @@
         <span></span>
       </div>
     </div>
-    <canvas id="ui" class="hide"></canvas>
+    
+    <div id="ui" class="hide">
+      <div class="container">
+        <img src="favicon.ico" height="256" width="256"/>
+        <button id="create-room">Create a Room</button>
+        <button id="join-room">Join a Room</button>
+        <h1 style="color: white">Pick your spaceship color</h1>
+        <div id="color-changer">
+          <button id="color-left"><</button>
+          <div id="color-box" style="height: 128px; width: 128px; background-color: blue; border: 0.3em solid lightgray"></div>
+          <button id="color-right">></button>
+        </div>
+      </div>
+    </div>
     <canvas id="game" style="z-index: -100"></canvas>
   </main>
   <script src="app.js"></script>
