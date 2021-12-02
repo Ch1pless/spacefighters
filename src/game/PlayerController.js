@@ -10,7 +10,11 @@ export class PlayerController {
 
   keyEventHandler(event) {
     this.keysPressed[event.key] = event.type == "keydown";
-    event.preventDefault();
+    if (event.type == "keydown") {
+      console.log("prevented default");
+      event.preventDefault();
+    }
+    return false;
   }
 
   init() {
