@@ -39,7 +39,8 @@ vec3 computeSimple(Light l, vec3 V, vec3 N) {
 
   if (l.position.w > 0.0) {
     lightVector -= fPosition;
-    attenuation = clamp(10.0 / length(lightVector), 0.0, 1.0);
+    float d = length(lightVector);
+    attenuation = clamp(1.0 / (1.0 + 0.05*d + 0.0*d*d), 0.0, 1.0);
   }
 
   vec3 L = normalize(lightVector);

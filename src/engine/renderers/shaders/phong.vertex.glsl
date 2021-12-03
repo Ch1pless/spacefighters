@@ -16,6 +16,6 @@ out vec3 fNormal;
 void main() {
   vec4 modelPosition = u_modelViewMatrix * vec4(position, 1.0);
   fNormal = normalize(u_normalMatrix * normal);
-  fPosition = vec3(u_modelMatrix * vec4(position, 1.0)).xyz;
+  fPosition = modelPosition.xyz / modelPosition.w;
   gl_Position = u_projectionMatrix * modelPosition;
 }

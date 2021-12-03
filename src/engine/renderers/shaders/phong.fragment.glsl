@@ -11,6 +11,7 @@ struct Light {
   int type; // 0: ambient, 1: simple(point/directional), 2: spotlight
 };
 
+uniform mat4 u_viewMatrix;
 uniform vec3 u_eyePosition;
 uniform vec3 u_materialColor;
 uniform vec3 u_specularColor;

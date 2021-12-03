@@ -58,7 +58,7 @@ const config = {
   player: {
     horMovSpeed: 40,
     verMovSpeed: 20,
-    horRotSpeed: 20*3.14159/180,
+    horRotSpeed: 30*Math.PI/180,
     keys: {
       forward: "w",
       backward: "s",
@@ -137,8 +137,6 @@ class App {
     this.shipTextureSelector = new ShipTextureSelector();
   }
 
-
-
   async init() {
     this.gl = twgl.getContext(this.gameCanvas);
     this.twgl_renderer = new TWGLRenderer(this.gl);
@@ -156,6 +154,7 @@ class App {
     ship.traverse((object) => {
       if (object.isMesh) {
         object.material.userData.textureMap = twgl.createTexture(this.gl, {src: this.shipTextureSelector.getTextureFromColor(data.color), flipY: true}); 
+        object.geometry.computeBoundingSphere();
       }
     });
 
@@ -203,7 +202,7 @@ class App {
   async initTable() {
     this.table = await new OBJLoader().loadAsync(tableFiles.obj);
     this.table.traverse(object => {
-      if (object.isMesh) object.material.color = new THREE.Color(0x303030);
+      if (object.isMesh) object.material.color = new THREE.Color(0x081530);
     });
   }
 
@@ -236,18 +235,19 @@ class App {
     for (let i = 0; i < asteroidAmount; ++i) {
       const asteroid = asteroid_objs[Math.floor(Math.random()*4)].clone();
       asteroid.scale.multiplyScalar(1 + Math.random()*4);
-      asteroid.rotation.set(Math.random()*2*3.14159, Math.random()*2*3.14159, Math.random()*2*3.14159);
+      asteroid.rotation.set(Math.random()*2*Math.PI, Math.random()*2*Math.PI, Math.random()*2*Math.PI);
       let pos = [];
       for (let j = 0; j < 3; ++j)
         pos.push(Math.floor(Math.random() * fieldRadius * 2 - fieldRadius));
       asteroid.position.set(pos[0], pos[1] / 5, pos[2]);
       asteroid.updateMatrix();
+      asteroid.matrixAutoUpdate = false;
+      asteroid.geometry.computeBoundingSphere();
+      asteroid.geometry.boundingSphere.center.copy(asteroid.position);
       this.asteroidField.add(asteroid);
     }
     this.scene.add(this.asteroidField);
   }
-
-
   
   toggleLoadingScreen() {
     this.loadScreen.classList.toggle("hide");
@@ -276,7 +276,7 @@ class App {
     this.scene.add(pointLight);
 
     this.ship.position.set(-5, 1, 10);
-    this.ship.setRotationFromEuler(new THREE.Euler(0, 180*3.14159/180, 0));
+    this.ship.setRotationFromEuler(new THREE.Euler(0, 180*Math.PI/180, 0));
 
     this.table.position.set(-5, -12, 10);
 
@@ -315,7 +315,7 @@ class App {
 
     if (this.previousTimeStamp !== undefined && timestamp != this.previousTimeStamp) {
       const deltaT = (timestamp - this.previousTimeStamp) / 1000;
-      this.ship.rotateY(5*3.14159/180 * deltaT);
+      this.ship.rotateY(5*Math.PI/180 * deltaT);
     }
 
     if (this.shipTextureSelector.getColorChanged()) {
@@ -336,8 +336,12 @@ class App {
   stopReadyScene() {
     this.toggleReadyUI();
 
-    // this.createRoom.removeEventListener("click");
-    // this.joinRoom.removeEventListener("click");
+    this.table.traverse(object => {
+      if (object.isMesh) {
+        object.geometry.dispose();
+        object.material.dispose();
+      }
+    });
 
     delete this.ui;
     delete this.createRoomBtn;
@@ -347,6 +351,8 @@ class App {
     delete this.ship;
     delete this.scene;
     delete this.camera;
+
+    
 
     this.displayingReadyScene = false;
   }
@@ -371,6 +377,8 @@ class App {
 
     this.scene.add(this.player);
     this.scene.add(this.enemy);
+
+    this.missiles = {};
 
     requestAnimationFrame(this.drawGameScene.bind(this));
 
@@ -398,8 +406,8 @@ class App {
 
     this.previousTimeStamp = timestamp;
 
-    // console.log(this.player.matrix.elements.toString());
-    // console.log(this.enemy.matrix.elements.toString());
+    this.detectPlayerCollision();
+
     this.socket.emit("updateState", this.player.matrix, this.room);
     
     requestAnimationFrame(this.drawGameScene.bind(this));
@@ -407,6 +415,56 @@ class App {
 
   stopGameScene() {
     this.displayingGameScene = false;
+  }
+
+
+
+  updateBoundingSphere(object) {
+    const newCenter = object.position;
+    object.traverse((child) => {
+      if (child.isMesh) {
+        child.geometry.boundingSphere.set(
+          newCenter,
+          child.geometry.boundingSphere.radius
+        );
+      }
+    });
+  }
+
+  detectPlayerCollision() {
+    this.updateBoundingSphere(this.player);
+    this.updateBoundingSphere(this.enemy);
+
+    if (this.missiles[this.enemyId])
+      this.updateBoundingSphere(this.missiles[this.enemyId]);
+
+    let to_check = [];
+
+    let playerMesh;
+    this.player.traverse(object => {
+      if (object.isMesh)
+        playerMesh = object;
+    })
+
+    this.scene.traverse(object => {
+      if (object != playerMesh && object.isMesh && object.geometry.boundingSphere !== null)
+        to_check.push(object);
+    });
+
+    let playerBoundingSphere = null;
+    this.player.traverse(child => {
+      if (child.isMesh && child.geometry.boundingSphere !== null)
+        playerBoundingSphere = child.geometry.boundingSphere;
+    });
+
+    for (const mesh of to_check) {
+      if (playerBoundingSphere.intersectsSphere(mesh.geometry.boundingSphere)) {
+        console.log(" Collision Detected with ");
+        console.log(mesh.geometry.boundingSphere.center.toArray());
+      }
+    }
+    
+
   }
 
   createRoom() {
@@ -437,3 +495,4 @@ const Server = new IO(Application);
     await Application.startReadyScene();
   }
 )();
+

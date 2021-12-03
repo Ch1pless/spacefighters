@@ -3,7 +3,16 @@ const THREE = require("three");
 module.exports = class GameState {
   constructor() {
     this.players = {};
+    this.missiles = {};
     this.stateInverval = null;
+  }
+
+  addMissile(id, matrix, target) {
+    this.missiles[id] = { matrix, target };
+  }
+
+  removeMissile(id) {
+    delete this.missiles[id];
   }
 
   addPlayer(id, color) {

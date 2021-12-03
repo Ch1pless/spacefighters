@@ -86,6 +86,14 @@ io.on("connection", client => {
   client.on("updateState", (matrix, room) => {
     rooms[room].players[client.id].matrix = matrix;
   });
+
+  client.on("fireMissile", (matrix, target, room) => {
+    rooms[room].addMissile(client.id, matrix, target);
+  });
+
+  client.on("destroyMissile", (room) => {
+    rooms[room].removeMissile(client.id);
+  })
 });
 
 const rooms = {};
