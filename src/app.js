@@ -13,7 +13,7 @@ import { Skybox } from "./space/Skybox";
 const IMGLoader = new THREE.ImageLoader();
 
 const terrainFiles = {
-  obj: require("./assets/Terrain/Icelandic mountain.obj"), 
+  obj: require("./assets/Terrain/Icelandic mountain.obj"),
   mtl: require("./assets/Terrain/Icelandic mountain.mtl"),
   texture: require("./assets/Terrain/ColorFxLowRes.png")
 };
@@ -25,8 +25,8 @@ const skyboxFiles = {
   textures: [
     require("./assets/Skyboxes/Skybox01/right.png"), // pos-x
     require("./assets/Skyboxes/Skybox01/left.png"), // neg-x
-    require("./assets/Skyboxes/Skybox01/top.png"), // pos-y
-    require("./assets/Skyboxes/Skybox01/bottom.png"), // neg-y
+    require("./assets/Skyboxes/Skybox01/bottom.png"), // pos-y
+    require("./assets/Skyboxes/Skybox01/top.png"), // neg-y
     require("./assets/Skyboxes/Skybox01/front.png"), // pos-z
     require("./assets/Skyboxes/Skybox01/back.png") // neg-z
   ]
@@ -36,15 +36,15 @@ const asteroidFiles = [
   {
     obj: require("./assets/Asteroids/Asteroid_1/ASTEROID_1_LOW_MODEL_.obj"),
     texture: require("./assets/Asteroids/Asteroid_1/ASTEROID_LOW_POLY_1_COLOR_.png")
-  }, 
+  },
   {
     obj: require("./assets/Asteroids/Asteroid_2/ASTEROID_2_LOW_MODEL_.obj"),
     texture: require("./assets/Asteroids/Asteroid_2/ASTEROID_LOW_POLY_2_COLOR_.png")
-  }, 
+  },
   {
     obj: require("./assets/Asteroids/Asteroid_3/ASTEROID_3_LOW_MODEL_.obj"),
     texture: require("./assets/Asteroids/Asteroid_3/ASTEROID_LOW_POLY_3_COLOR_.png")
-  }, 
+  },
   {
     obj: require("./assets/Asteroids/Asteroid_4/ASTEROID_4_LOW_MODEL_.obj"),
     texture: require("./assets/Asteroids/Asteroid_4/ASTEROID_LOW_POLY_4_COLOR_.png")
@@ -76,7 +76,7 @@ const config = {
   },
   asteroidField: {
     fieldRadius: 200,
-    asteroidAmount: 100
+    asteroidAmount: 10
   }
 };
 
@@ -85,12 +85,38 @@ class IO {
   constructor(app) {
     this.app = app;
     this.socket = io();
+    this.app.socket = this.socket;
     this.bindEvents();
   }
 
   bindEvents() {
-    this.socket.on('connect', this.onConnect.bind(this));
-    this.socket.on('error', this.onError);
+    this.socket.on("connect", this.onConnect.bind(this));
+    this.socket.on("error", this.onError);
+    this.socket.on("startGame", (gameState) => { this.onGameStart(gameState); });
+    this.socket.on("updateGameState", (gameState) => { this.onUpdateGameState(gameState); });
+    this.socket.on("room", (room) => { this.app.room = room; })
+  }
+
+  async onGameStart(gameState) {
+    this.currentGameState = gameState;
+    console.log(gameState.players);
+    for (const player in gameState.players) {
+      if (player == this.app.clientId) {
+        await this.app.initPlayer(gameState.players[player]);
+      } else {
+        this.app.enemyId = player;
+        await this.app.initEnemy(gameState.players[player]);
+      }
+    }
+    this.app.swapScreens();
+  }
+
+  onUpdateGameState(gameState) {
+    let enemyState = gameState.players[this.app.enemyId];
+    if (this.app.player && this.app.enemy) {
+      new THREE.Matrix4().fromArray(enemyState.matrix.elements).decompose(this.app.enemy.position, this.app.enemy.quaternion, this.app.enemy.scale);
+    }
+    this.currentGameState = gameState;
   }
 
   onConnect() {
@@ -104,24 +130,63 @@ class IO {
 
 class App {
   constructor() {
-    this.gameId = 0;
     this.role = '';
     this.clientId = null;
+    this.socket = null;
     this.gameCanvas = document.querySelector("#game");
     this.loadScreen = document.querySelector("#load");
-    this.ui = document.querySelector("#ui");
+
     this.start = undefined;
     this.previousTimeStamp = undefined;
     this.displayingReadyScene = false;
     this.displayingGameScene = false;
     this.shipTextureSelector = new ShipTextureSelector();
-    this.createRoom = document.querySelector("#create-room");
-    this.joinRoom = document.querySelector("#join-room");
-    this.createRoom.addEventListener("click", this.swapScreens.bind(this));
   }
 
-  toggleLoadingScreen() {
-    this.loadScreen.classList.toggle("hide");
+
+
+  async init() {
+    this.gl = twgl.getContext(this.gameCanvas);
+    this.twgl_renderer = new TWGLRenderer(this.gl);
+  }
+
+  async initShip(data) {
+    if (data === undefined || data === null) {
+      data = {};
+      data.color = "blue";
+      data.matrix = new THREE.Matrix4();
+    }
+
+    await this.shipTextureSelector.init();
+    const ship = await ModelLoader.loadAsync(shipFiles.obj);
+    ship.traverse((object) => {
+      if (object.isMesh) {
+        object.material.userData.textureMap = twgl.createTexture(this.gl, {src: this.shipTextureSelector.getTextureFromColor(data.color), flipY: true});
+      }
+    });
+    new THREE.Matrix4().fromArray(data.matrix.elements).decompose(ship.position, ship.quaternion, ship.scale);
+
+    return ship;
+  }
+
+  async initPlayer(playerData) {
+    this.player = await this.initShip(playerData);
+
+    this.shipController = new PlayerController(config.player, this.player);
+  }
+
+  setPlayerCamera() {
+    this.camera = new THREE.PerspectiveCamera(45, this.gl.canvas.clientWidth/this.gl.canvas.clientHeight, 0.1, 1000);
+
+    this.player.add(this.camera);
+    this.camera.translateZ(-20);
+    this.camera.translateY(6);
+    this.camera.lookAt(this.player.position);
+  }
+
+  async initEnemy(enemyData) {
+    this.enemy = await this.initShip(enemyData);
+
   }
 
   async initSkybox() {
@@ -147,19 +212,16 @@ class App {
     this.scene.background = 0x000000;
     this.camera = new THREE.PerspectiveCamera(45, this.gl.canvas.clientWidth / this.gl.canvas.clientHeight, 0.1, 1000);
 
-    await Promise.all([this.initTable(), this.initShip()]);
-    this.table.traverse(object => {
-      if (object.isMesh) {
-        object.material.color = new THREE.Color(0x303030);
-      }
-    })
-    
+    this.initTable();
+    this.ship = await this.initShip();
+
     this.scene.add(this.ship);
     this.scene.add(this.table);
     this.scene.add(new THREE.AmbientLight(0xffffff, 0.1));
-    this.pointLight = new THREE.PointLight(0xffffff, 1, 1, 1);
-    this.scene.add(this.pointLight);
-    this.pointLight.position.set(-3, 3, 4);
+
+    let pointLight = new THREE.PointLight(0xffffff, 1, 1, 1);
+    pointLight.position.set(-3, 3, 4);
+    this.scene.add(pointLight);
 
     this.ship.position.set(-5, 1, 10);
     this.ship.setRotationFromEuler(new THREE.Euler(0, 180*3.14159/180, 0));
@@ -167,16 +229,23 @@ class App {
 
     this.table.scale.multiplyScalar(1.5);
     this.ship.scale.multiplyScalar(0.70);
-    
-    this.shipOffset = this.ship.position.clone();
-    this.shipOffset.x -= 10;
+
+    let shipOffset = this.ship.position.clone();
+    shipOffset.x -= 10;
 
     this.camera.position.set(0, 6, -10);
-    this.camera.lookAt(this.shipOffset);
+    this.camera.lookAt(shipOffset);
+
+    this.ui = document.querySelector("#ui");
+    this.createRoomBtn = document.querySelector("#create-room");
+    this.joinRoomBtn = document.querySelector("#join-room");
+    this.joinRoomId = document.querySelector("#join-room-id");
+
+    this.createRoomBtn.addEventListener("click", this.createRoom.bind(this));
+    this.joinRoomBtn.addEventListener("click", this.joinRoom.bind(this));
 
     requestAnimationFrame(this.drawReadyScene.bind(this));
 
-    
     this.toggleReadyUI();
     this.toggleLoadingScreen();
   }
@@ -188,7 +257,7 @@ class App {
   drawReadyScene(timestamp) {
     if (this.start === undefined)
       this.start = timestamp;
-    
+
     if (twgl.resizeCanvasToDisplaySize(this.gl.canvas))
       this.camera.updateProjectionMatrix();
 
@@ -200,11 +269,11 @@ class App {
     if (this.shipTextureSelector.getColorChanged()) {
       this.ship.traverse((object) => {
         if (object.isMesh) {
-          object.material.userData.textureMap = twgl.createTexture(this.gl, {src: this.shipTextureSelector.currentTexture(), flipY: true}); 
+          object.material.userData.textureMap = twgl.createTexture(this.gl, {src: this.shipTextureSelector.currentTexture(), flipY: true});
         }
       });
     }
-    
+
     this.twgl_renderer.render(this.scene, this.camera, this.gl);
 
     this.previousTimeStamp = timestamp;
@@ -213,107 +282,45 @@ class App {
       requestAnimationFrame(this.drawReadyScene.bind(this));
   }
 
-  async initShip() {
-    await this.shipTextureSelector.init();
-    this.ship = await new OBJLoader().loadAsync(shipFiles.obj);
-    console.log(this.ship);
-    this.ship.traverse((object) => {
-      if (object.isMesh) {
-        object.material.userData.textureMap = twgl.createTexture(this.gl, {src: this.shipTextureSelector.currentTexture(), flipY: true}); 
-      }
-    });
-  }
+  stopReadyScene() {
+    this.toggleReadyUI();
 
-  async initPlayer() {
-    await this.initShip();
+    // this.createRoom.removeEventListener("click");
+    // this.joinRoom.removeEventListener("click");
 
-    this.shipController = new PlayerController(config.player, this.ship, this.scene);
+    delete this.ui;
+    delete this.createRoomBtn;
+    delete this.joinRoomBtn;
+    delete this.joinRoomId;
+    delete this.table;
+    delete this.ship;
+    delete this.scene;
+    delete this.camera;
 
-    this.ship.add(this.camera);
-    
-    this.camera.translateZ(-20);
-    this.camera.translateY(6);
-    this.camera.lookAt(new THREE.Vector3(0, 0, 0));
-
-    this.scene.add(this.ship);
-  }
-
-  async initTerrain() {
-    this.terrain = await new OBJLoader().setMaterials(await new MTLLoader().loadAsync(terrainFiles.mtl)).loadAsync(terrainFiles.obj);
-    this.terrain_image = await IMGLoader.loadAsync(terrainFiles.texture);
-
-    this.terrain.traverse((object) => {
-      if (object.type == "Mesh")
-        object.material.userData.textureMap = twgl.createTexture(this.gl, {src: this.terrain_image, flipY: true});
-    });
-
-    this.terrain.translateZ(300);
-    this.terrain.translateY(-50);
-    this.terrain.scale.set(10, 10, 10);
-
-    this.scene.add(this.terrain);
-  }
-
-  async initAsteroidField() {
-    this.asteroidField = new THREE.Group();
-
-    const asteroid_objs = await Promise.all([
-      new OBJLoader().loadAsync(asteroidFiles[0].obj),
-      new OBJLoader().loadAsync(asteroidFiles[1].obj),
-      new OBJLoader().loadAsync(asteroidFiles[2].obj),
-      new OBJLoader().loadAsync(asteroidFiles[3].obj)
-    ]);
-
-    const asteroid_imgs = await Promise.all([
-      IMGLoader.loadAsync(asteroidFiles[0].texture),
-      IMGLoader.loadAsync(asteroidFiles[1].texture),
-      IMGLoader.loadAsync(asteroidFiles[2].texture),
-      IMGLoader.loadAsync(asteroidFiles[3].texture)
-    ]);
-
-    for (let i = 0; i < asteroid_objs.length; ++i) {
-      asteroid_objs[i] = asteroid_objs[i].children[0]; // set objs to mesh
-      asteroid_objs[i].material.userData.textureMap = twgl.createTexture(this.gl, {src: asteroid_imgs[i], flipY: true});
-      asteroid_objs[i].matrixAutoUpdate = false;
-      console.log(asteroid_objs[i]);
-    }
-
-    const asteroidAmount = config.asteroidField.asteroidAmount;
-    const fieldRadius = config.asteroidField.fieldRadius;
-
-    for (let i = 0; i < asteroidAmount; ++i) {
-      const asteroid = asteroid_objs[Math.floor(Math.random()*4)].clone();
-      asteroid.scale.multiplyScalar(1 + Math.random()*4);
-      asteroid.rotation.set(Math.random()*2*3.14159, Math.random()*2*3.14159, Math.random()*2*3.14159);
-      let pos = [];
-      for (let j = 0; j < 3; ++j)
-        pos.push(Math.floor(Math.random() * fieldRadius * 2 - fieldRadius));
-      asteroid.position.set(pos[0], pos[1] / 5, pos[2]);
-      asteroid.updateMatrix();
-      this.asteroidField.add(asteroid);
-    }
-    this.scene.add(this.asteroidField);
-  }
-
-  async init() {
-    this.gl = twgl.getContext(this.gameCanvas);
-    this.twgl_renderer = new TWGLRenderer(this.gl);
+    this.displayingReadyScene = false;
   }
 
   async startGameScene() {
     this.toggleLoadingScreen();
     this.displayingGameScene = true;
     this.scene = new THREE.Scene();
-    this.camera = new THREE.PerspectiveCamera(45, this.gl.canvas.clientWidth / this.gl.canvas.clientHeight, 0.1, 1000);
 
     this.scene.background = 0x808080;
 
-    await Promise.all([this.initPlayer(), /*this.initTerrain(),*/ this.initSkybox(), this.initAsteroidField()]);
-    
+    await Promise.all([this.initSkybox(), this.initAsteroidField()]);
+
+    this.sun = new THREE.DirectionalLight(0xfcb0f1, 0.5);
+    this.sun.position.set(1, 1, 2);
+
     this.scene.add(new THREE.AmbientLight(0xffffff, 0.3));
     this.sun = new THREE.DirectionalLight(0xfcb0f1, 0.5);
     this.scene.add(this.sun);
     this.sun.position.set(1, 1, 2);
+
+    this.setPlayerCamera();
+
+    this.scene.add(this.player);
+    this.scene.add(this.enemy);
 
     requestAnimationFrame(this.drawGameScene.bind(this));
     this.toggleLoadingScreen();
@@ -322,14 +329,14 @@ class App {
   drawGameScene(timestamp) {
     if (this.start === undefined)
       this.start = timestamp;
-    
+
     if (twgl.resizeCanvasToDisplaySize(this.gl.canvas))
       this.camera.updateProjectionMatrix();
     if (this.previousTimeStamp !== undefined && timestamp != this.previousTimeStamp) {
       const deltaT = (timestamp - this.previousTimeStamp) / 1000;
       this.shipController.update(deltaT);
     }
-    
+
 
     this.twgl_renderer.render(this.scene, this.camera, this.gl);
     if (this.skybox) {
@@ -338,17 +345,28 @@ class App {
 
     this.previousTimeStamp = timestamp;
 
-    if (this.displayingGameScene)
-      requestAnimationFrame(this.drawGameScene.bind(this));
-  }
+    // console.log(this.player.matrix.elements.toString());
+    // console.log(this.enemy.matrix.elements.toString());
+    this.socket.emit("updateState", this.player.matrix, this.room);
 
-  stopReadyScene() {
-    this.toggleReadyUI();
-    this.displayingReadyScene = false;
+    requestAnimationFrame(this.drawGameScene.bind(this));
   }
 
   stopGameScene() {
     this.displayingGameScene = false;
+  }
+
+  createRoom() {
+    this.socket.emit("createRoom", this.shipTextureSelector.currentColor());
+    this.createRoomBtn.classList.toggle("hide");
+    this.joinRoomBtn.classList.toggle("hide");
+    this.joinRoomId.classList.toggle("hide");
+    document.querySelector("#color-changer").classList.toggle("hide");
+  }
+
+  joinRoom() {
+    let roomId = this.joinRoomId.value;
+    this.socket.emit("joinRoom", this.shipTextureSelector.currentColor(), roomId);
   }
 
   swapScreens() {

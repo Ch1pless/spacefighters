@@ -2,6 +2,7 @@
 const express = require("express");
 const createServer = require("http").createServer;
 const Server = require("socket.io").Server;
+const GameState = require("./GameState");
 
 // Server Configuration and Deployment
 require("dotenv").config();
@@ -42,5 +43,66 @@ app.get("/", (req, res) => { res.sendFile('index.html'); });
 httpServer.listen(port);
 
 console.log(`Server listening on port: ${port}`);
+
 // Socket.io management
-io.on("connection", client => { console.log(`User ${client.id} connected at ${client.handshake.address}.`); });
+io.on("connection", client => { 
+  console.log(`User ${client.id} connected at ${client.handshake.address}.`);
+
+  client.on("disconnecting", () => {
+    for (const room of client.rooms) {
+      if (rooms[room] && rooms[room].stateInterval)
+        clearInterval(rooms[room].stateInterval);
+    }
+  })
+
+  client.on("disconnect", () => { 
+    console.log(`User ${client.id} disconnected.`)
+    // delete players existence in game
+  });
+
+
+  client.on("createRoom", (color) => {
+    let newRoom = createRoom();
+    client.join(newRoom);
+    console.log(`Client has created room: ${newRoom}.`);
+    rooms[newRoom] = new GameState();
+    rooms[newRoom].addPlayer(client.id, color);
+  });
+
+  client.on("joinRoom", (color, room) => {
+    if (rooms[room]) {
+      console.log(`Client has joined room: ${room}`);
+      rooms[room].addPlayer(client.id, color);
+      client.join(room);
+      io.to(room).emit("room", room);
+      io.to(room).emit("startGame", rooms[room]);
+      rooms[room].stateInterval = setInterval(() => { io.to(room).emit("updateGameState", rooms[room]); }, 1000 / 60);
+    } else {
+      console.log(`Room ${room} does not exist`);
+    }
+  });
+
+  client.on("updateState", (matrix, room) => {
+    rooms[room].players[client.id].matrix = matrix;
+  });
+});
+
+const rooms = {};
+
+function randomRoom() {
+  let room = "";
+  for (let i = 0; i < 4; ++i) {
+    room += Math.floor(Math.random()*10).toString();
+  }
+  return room;
+}
+
+function createRoom() {
+  let newRoom = randomRoom();
+  while (rooms[newRoom]) newRoom = randomRoom();
+  return newRoom;
+}
+
+
+
+
