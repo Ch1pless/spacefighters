@@ -1,0 +1,49 @@
+import * as THREE from "three";
+
+export class MissileMechanic {
+  constructor(missile) {
+    this.missile = missile;
+    this.hidingPos = {"x":0, "y":0, "z":0};
+    this.firing = false;
+  }
+
+  setHidingPos(pos){
+    this.missile.position.set(hidingPos.x, hidingPos.y, hidingPos.z);
+  }
+  
+  fire(){
+      if (this.firing) 
+        return;
+      
+  }
+
+  update(deltaT) {
+    let movement = new THREE.Vector3(0, 0, 0);
+    let rotationY = 0;
+    if (this.keysPressed[this.config.keys.forward])
+      movement.z += 1;
+    if (this.keysPressed[this.config.keys.backward])
+      movement.z -= 1;
+    if (this.keysPressed[this.config.keys.up])
+      movement.y += 1;
+    if (this.keysPressed[this.config.keys.down])
+      movement.y -= 1;
+    if (this.keysPressed[this.config.keys.left])
+      rotationY += 1;
+    if (this.keysPressed[this.config.keys.right])
+      rotationY -= 1;
+    if (this.keysPressed[this.config.keys.fire]){
+      
+    }
+      
+
+    
+    movement.normalize();
+    this.player.translateZ(movement.z * this.config.horMovSpeed * deltaT);
+    this.player.translateY(movement.y * this.config.verMovSpeed * deltaT);
+    this.player.rotateY(this.config.horRotSpeed * rotationY * deltaT);
+    //this.missile.translateY(movement.z * this.config.horMovSpeed * deltaT);
+    //this.missile.translateX(movement.y * this.config.verMovSpeed * deltaT);
+    // this.missile.setRotationFromEuler(new THREE.Euler(this.config.horRotSpeed * rotationY * deltaT, 0, 0));
+  }
+}

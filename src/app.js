@@ -3,6 +3,7 @@ import * as twgl from "twgl-base.js";
 import * as THREE from "three";
 import "regenerator-runtime/runtime.js";
 import { OBJLoader } from "three/examples/jsm/loaders/objloader";
+import { MTLLoader } from "three/examples/jsm/loaders/mtlloader";
 import TWGLRenderer from "./engine/renderers/TWGLRenderer";
 import { PlayerController } from "./game/PlayerController";
 import { ShipTextureSelector } from "./game/ShipTextureSelector";
@@ -10,12 +11,16 @@ import { Skybox } from "./space/Skybox";
 
 
 const IMGLoader = new THREE.ImageLoader();
-const ModelLoader = new OBJLoader();
+
+const terrainFiles = {
+  obj: require("./assets/Terrain/Icelandic mountain.obj"), 
+  mtl: require("./assets/Terrain/Icelandic mountain.mtl"),
+  texture: require("./assets/Terrain/ColorFxLowRes.png")
+};
 
 const shipFiles = {
   obj: require("./assets/StarSparrow_OBJ/StarSparrow01.obj")
 };
-
 const skyboxFiles = {
   textures: [
     require("./assets/Skyboxes/Skybox01/right.png"), // pos-x
@@ -65,7 +70,8 @@ const config = {
       left: "a",
       right: "d",
       up: " ",
-      down: "c"
+      down: "c",
+      fire: "f"
     }
   },
   asteroidField: {
@@ -114,38 +120,10 @@ class App {
     this.createRoom.addEventListener("click", this.swapScreens.bind(this));
   }
 
-  
-
-  async init() {
-    this.gl = twgl.getContext(this.gameCanvas);
-    this.twgl_renderer = new TWGLRenderer(this.gl);
+  toggleLoadingScreen() {
+    this.loadScreen.classList.toggle("hide");
   }
 
-  async initShip() {
-    await this.shipTextureSelector.init();
-    this.ship = await new OBJLoader().loadAsync(shipFiles.obj);
-    console.log(this.ship);
-    this.ship.traverse((object) => {
-      if (object.isMesh) {
-        object.material.userData.textureMap = twgl.createTexture(this.gl, {src: this.shipTextureSelector.currentTexture(), flipY: true}); 
-      }
-    });
-  }
-
-  async initPlayer() {
-    await this.initShip();
-
-    this.shipController = new PlayerController(config.player, this.ship);
-
-    this.ship.add(this.camera);
-    
-    this.camera.translateZ(-20);
-    this.camera.translateY(6);
-    this.camera.lookAt(new THREE.Vector3(0, 0, 0));
-
-    this.scene.add(this.ship);
-  }
-  
   async initSkybox() {
     this.skybox = new Skybox()
     await this.skybox.init(await Promise.all([
@@ -157,64 +135,11 @@ class App {
       IMGLoader.loadAsync(skyboxFiles.textures[5]), // neg-z
     ]), this.gl);
   }
-  
+
   async initTable() {
     this.table = await new OBJLoader().loadAsync(tableFiles.obj);
-    this.table.traverse(object => {
-      if (object.isMesh) object.material.color = new THREE.Color(0x303030);
-    });
   }
 
-  async initAsteroidField() {
-    this.asteroidField = new THREE.Group();
-
-    const asteroid_objs = await Promise.all([
-      ModelLoader.loadAsync(asteroidFiles[0].obj),
-      ModelLoader.loadAsync(asteroidFiles[1].obj),
-      ModelLoader.loadAsync(asteroidFiles[2].obj),
-      ModelLoader.loadAsync(asteroidFiles[3].obj)
-    ]);
-
-    const asteroid_imgs = await Promise.all([
-      IMGLoader.loadAsync(asteroidFiles[0].texture),
-      IMGLoader.loadAsync(asteroidFiles[1].texture),
-      IMGLoader.loadAsync(asteroidFiles[2].texture),
-      IMGLoader.loadAsync(asteroidFiles[3].texture)
-    ]);
-
-    for (let i = 0; i < asteroid_objs.length; ++i) {
-      asteroid_objs[i] = asteroid_objs[i].children[0]; // set objs to mesh
-      asteroid_objs[i].material.userData.textureMap = twgl.createTexture(this.gl, {src: asteroid_imgs[i], flipY: true});
-      asteroid_objs[i].matrixAutoUpdate = false;
-    }
-
-    const asteroidAmount = config.asteroidField.asteroidAmount;
-    const fieldRadius = config.asteroidField.fieldRadius;
-
-    for (let i = 0; i < asteroidAmount; ++i) {
-      const asteroid = asteroid_objs[Math.floor(Math.random()*4)].clone();
-      asteroid.scale.multiplyScalar(1 + Math.random()*4);
-      asteroid.rotation.set(Math.random()*2*3.14159, Math.random()*2*3.14159, Math.random()*2*3.14159);
-      let pos = [];
-      for (let j = 0; j < 3; ++j)
-        pos.push(Math.floor(Math.random() * fieldRadius * 2 - fieldRadius));
-      asteroid.position.set(pos[0], pos[1] / 5, pos[2]);
-      asteroid.updateMatrix();
-      this.asteroidField.add(asteroid);
-    }
-    this.scene.add(this.asteroidField);
-  }
-
-
-  
-  toggleLoadingScreen() {
-    this.loadScreen.classList.toggle("hide");
-  }
-
-  toggleReadyUI() {
-    this.ui.classList.toggle("hide");
-  }
-  
   async startReadyScene() {
     this.toggleLoadingScreen();
     this.displayingReadyScene = true;
@@ -223,6 +148,11 @@ class App {
     this.camera = new THREE.PerspectiveCamera(45, this.gl.canvas.clientWidth / this.gl.canvas.clientHeight, 0.1, 1000);
 
     await Promise.all([this.initTable(), this.initShip()]);
+    this.table.traverse(object => {
+      if (object.isMesh) {
+        object.material.color = new THREE.Color(0x303030);
+      }
+    })
     
     this.scene.add(this.ship);
     this.scene.add(this.table);
@@ -233,7 +163,6 @@ class App {
 
     this.ship.position.set(-5, 1, 10);
     this.ship.setRotationFromEuler(new THREE.Euler(0, 180*3.14159/180, 0));
-
     this.table.position.set(-5, -12, 10);
 
     this.table.scale.multiplyScalar(1.5);
@@ -252,10 +181,11 @@ class App {
     this.toggleLoadingScreen();
   }
 
+  toggleReadyUI() {
+    this.ui.classList.toggle("hide");
+  }
+
   drawReadyScene(timestamp) {
-    if (!this.displayingReadyScene)
-      return;
-    
     if (this.start === undefined)
       this.start = timestamp;
     
@@ -279,58 +209,142 @@ class App {
 
     this.previousTimeStamp = timestamp;
 
-    requestAnimationFrame(this.drawReadyScene.bind(this));
+    if (this.displayingReadyScene)
+      requestAnimationFrame(this.drawReadyScene.bind(this));
   }
 
-  stopReadyScene() {
-    this.toggleReadyUI();
-    this.displayingReadyScene = false;
+  async initShip() {
+    await this.shipTextureSelector.init();
+    this.ship = await new OBJLoader().loadAsync(shipFiles.obj);
+    console.log(this.ship);
+    this.ship.traverse((object) => {
+      if (object.isMesh) {
+        object.material.userData.textureMap = twgl.createTexture(this.gl, {src: this.shipTextureSelector.currentTexture(), flipY: true}); 
+      }
+    });
+  }
+
+  async initPlayer() {
+    await this.initShip();
+
+    this.shipController = new PlayerController(config.player, this.ship, this.scene);
+
+    this.ship.add(this.camera);
+    
+    this.camera.translateZ(-20);
+    this.camera.translateY(6);
+    this.camera.lookAt(new THREE.Vector3(0, 0, 0));
+
+    this.scene.add(this.ship);
+  }
+
+  async initTerrain() {
+    this.terrain = await new OBJLoader().setMaterials(await new MTLLoader().loadAsync(terrainFiles.mtl)).loadAsync(terrainFiles.obj);
+    this.terrain_image = await IMGLoader.loadAsync(terrainFiles.texture);
+
+    this.terrain.traverse((object) => {
+      if (object.type == "Mesh")
+        object.material.userData.textureMap = twgl.createTexture(this.gl, {src: this.terrain_image, flipY: true});
+    });
+
+    this.terrain.translateZ(300);
+    this.terrain.translateY(-50);
+    this.terrain.scale.set(10, 10, 10);
+
+    this.scene.add(this.terrain);
+  }
+
+  async initAsteroidField() {
+    this.asteroidField = new THREE.Group();
+
+    const asteroid_objs = await Promise.all([
+      new OBJLoader().loadAsync(asteroidFiles[0].obj),
+      new OBJLoader().loadAsync(asteroidFiles[1].obj),
+      new OBJLoader().loadAsync(asteroidFiles[2].obj),
+      new OBJLoader().loadAsync(asteroidFiles[3].obj)
+    ]);
+
+    const asteroid_imgs = await Promise.all([
+      IMGLoader.loadAsync(asteroidFiles[0].texture),
+      IMGLoader.loadAsync(asteroidFiles[1].texture),
+      IMGLoader.loadAsync(asteroidFiles[2].texture),
+      IMGLoader.loadAsync(asteroidFiles[3].texture)
+    ]);
+
+    for (let i = 0; i < asteroid_objs.length; ++i) {
+      asteroid_objs[i] = asteroid_objs[i].children[0]; // set objs to mesh
+      asteroid_objs[i].material.userData.textureMap = twgl.createTexture(this.gl, {src: asteroid_imgs[i], flipY: true});
+      asteroid_objs[i].matrixAutoUpdate = false;
+      console.log(asteroid_objs[i]);
+    }
+
+    const asteroidAmount = config.asteroidField.asteroidAmount;
+    const fieldRadius = config.asteroidField.fieldRadius;
+
+    for (let i = 0; i < asteroidAmount; ++i) {
+      const asteroid = asteroid_objs[Math.floor(Math.random()*4)].clone();
+      asteroid.scale.multiplyScalar(1 + Math.random()*4);
+      asteroid.rotation.set(Math.random()*2*3.14159, Math.random()*2*3.14159, Math.random()*2*3.14159);
+      let pos = [];
+      for (let j = 0; j < 3; ++j)
+        pos.push(Math.floor(Math.random() * fieldRadius * 2 - fieldRadius));
+      asteroid.position.set(pos[0], pos[1] / 5, pos[2]);
+      asteroid.updateMatrix();
+      this.asteroidField.add(asteroid);
+    }
+    this.scene.add(this.asteroidField);
+  }
+
+  async init() {
+    this.gl = twgl.getContext(this.gameCanvas);
+    this.twgl_renderer = new TWGLRenderer(this.gl);
   }
 
   async startGameScene() {
     this.toggleLoadingScreen();
-
     this.displayingGameScene = true;
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(45, this.gl.canvas.clientWidth / this.gl.canvas.clientHeight, 0.1, 1000);
 
     this.scene.background = 0x808080;
 
-    await Promise.all([this.initPlayer(), this.initSkybox(), this.initAsteroidField()]);
-    
-    this.sun = new THREE.DirectionalLight(0xfcb0f1, 0.5);
-    this.sun.position.set(1, 1, 2);
+    await Promise.all([this.initPlayer(), /*this.initTerrain(),*/ this.initSkybox(), this.initAsteroidField()]);
     
     this.scene.add(new THREE.AmbientLight(0xffffff, 0.3));
+    this.sun = new THREE.DirectionalLight(0xfcb0f1, 0.5);
     this.scene.add(this.sun);
+    this.sun.position.set(1, 1, 2);
 
     requestAnimationFrame(this.drawGameScene.bind(this));
-
     this.toggleLoadingScreen();
   }
 
   drawGameScene(timestamp) {
-    if (!this.displayingGameScene)
-      return;
-    
     if (this.start === undefined)
       this.start = timestamp;
     
     if (twgl.resizeCanvasToDisplaySize(this.gl.canvas))
       this.camera.updateProjectionMatrix();
-
     if (this.previousTimeStamp !== undefined && timestamp != this.previousTimeStamp) {
       const deltaT = (timestamp - this.previousTimeStamp) / 1000;
       this.shipController.update(deltaT);
     }
+    
 
     this.twgl_renderer.render(this.scene, this.camera, this.gl);
-
-    if (this.skybox) this.skybox.render(this.camera, this.gl);
+    if (this.skybox) {
+      this.skybox.render(this.camera, this.gl);
+    }
 
     this.previousTimeStamp = timestamp;
-    
-    requestAnimationFrame(this.drawGameScene.bind(this));
+
+    if (this.displayingGameScene)
+      requestAnimationFrame(this.drawGameScene.bind(this));
+  }
+
+  stopReadyScene() {
+    this.toggleReadyUI();
+    this.displayingReadyScene = false;
   }
 
   stopGameScene() {
