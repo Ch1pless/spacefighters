@@ -28,19 +28,22 @@ vec3 computeAmbient(Light l) {
   return u_materialColor * l.intensity;
 }
 
-vec3 computeSimple(Light l) {
-  vec3 lightVector = l.position.xyz;
-  if (l.position.w > 0.0) lightVector -= fPosition;
+vec3 computeSimple(Light l, vec3 V, vec3 N) {
+  vec3 lightVector = (u_viewMatrix * l.position).xyz;
+  float attenuation = 1.0;
+
+  if (l.position.w > 0.0) {
+    lightVector -= fPosition;
+    attenuation = clamp(10.0 / length(lightVector), 0.0, 1.0);
+  }
 
   vec3 L = normalize(lightVector);
-  vec3 V = normalize(u_eyePosition - fPosition);
   vec3 H = normalize(L + V);
-  vec3 N = normalize(fNormal);
 
   vec3 diffuseColor = u_materialColor * clamp(dot(N, L), 0.0, 1.0);
   vec3 specularColor = u_specularColor * pow(clamp(dot(N, H), 0.0, 1.0), u_shininess); 
 
-  return (1.0 - u_specular) * diffuseColor + u_specular * specularColor;
+  return attenuation * l.intensity * l.color * ((1.0 - u_specular) * diffuseColor + u_specular * specularColor);
 }
 
 vec3 computeSpotlight(Light l) {
@@ -49,13 +52,15 @@ vec3 computeSpotlight(Light l) {
 
 vec3 computeColor() {
   vec3 color;
+  vec3 V = normalize(u_eyePosition - fPosition);
+  vec3 N = normalize(fNormal);
   for (int i = 0; i < u_numLights; ++i) {
     if (u_lights[i].type == -1)
       continue;
     else if (u_lights[i].type == 0)
       color += computeAmbient(u_lights[i]);
     else if (u_lights[i].type == 1)
-      color += computeSimple(u_lights[i]);
+      color += computeSimple(u_lights[i], V, N);
     else
       color += computeSpotlight(u_lights[i]);
   }
