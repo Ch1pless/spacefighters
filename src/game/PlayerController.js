@@ -5,6 +5,7 @@ export class PlayerController {
     this.player = player;
     this.config = config;
     this.keysPressed = {};
+    this.thrust = 0;
     this.init();
   }
 
@@ -23,25 +24,46 @@ export class PlayerController {
   }
 
   update(deltaT) {
-    let movement = new THREE.Vector3(0, 0, 0);
-    let rotationY = 0;
-    if (this.keysPressed[this.config.keys.forward])
-      movement.z += 1;
-    if (this.keysPressed[this.config.keys.backward])
-      movement.z -= 1;
-    if (this.keysPressed[this.config.keys.up])
-      movement.y += 1;
-    if (this.keysPressed[this.config.keys.down])
-      movement.y -= 1;
-    if (this.keysPressed[this.config.keys.left])
-      rotationY += 1;
-    if (this.keysPressed[this.config.keys.right])
-      rotationY -= 1;
+    let strafe = 0;
+    let pitch = 0;
+    let roll = 0;
 
-    
-    movement.normalize();
-    this.player.translateZ(movement.z * this.config.horMovSpeed * deltaT);
-    this.player.translateY(movement.y * this.config.verMovSpeed * deltaT);
-    this.player.rotateY(this.config.horRotSpeed * rotationY * deltaT);
+    if (this.keysPressed[this.config.keys.pitchUp])
+      pitch += 1;
+    if (this.keysPressed[this.config.keys.pitchDown])
+      pitch -= 1;
+
+    if (this.keysPressed[this.config.keys.rollRight])
+      roll += 1;
+    if (this.keysPressed[this.config.keys.rollLeft])
+      roll -= 1;
+
+    if (this.keysPressed[this.config.keys.strafeLeft])
+      strafe += 1;
+    if (this.keysPressed[this.config.keys.strafeRight])
+      strafe -= 1;
+
+    if (this.keysPressed[this.config.keys.thrustUp])
+      this.thrust += this.config.thrustRate;
+    if (this.keysPressed[this.config.keys.thrustDown])
+      this.thrust -= this.config.thrustRate;
+    if (!this.keysPressed[this.config.keys.thrustDown] && !this.keysPressed[this.config.keys.thrustUp]) {
+      if (Math.abs(this.thrust) < this.config.thrustRate)
+        this.thrust = 0;
+      if (this.thrust < 0)
+        this.thrust += this.config.thrustRate * 0.5;
+      else if (this.thrust > 0)
+        this.thrust -= this.config.thrustRate * 0.5;
+    }
+
+    if (this.thrust < this.config.thrustClamp.min)
+      this.thrust = this.config.thrustClamp.min;
+    else if (this.thrust > this.config.thrustClamp.max)
+      this.thrust = this.config.thrustClamp.max;
+
+    this.player.translateZ(this.thrust * deltaT);
+    this.player.translateX(strafe * this.config.strafeSpeed * deltaT);
+    this.player.rotateX(pitch * this.config.pitchSpeed * deltaT);
+    this.player.rotateZ(roll * this.config.rollSpeed * deltaT);
   }
 }

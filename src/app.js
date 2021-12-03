@@ -56,16 +56,20 @@ const config = {
     radiusFromCenter: 100_000,
   },
   player: {
-    horMovSpeed: 40,
-    verMovSpeed: 20,
-    horRotSpeed: 30*Math.PI/180,
+    thrustClamp: {min: -3, max: 30},
+    thrustRate: 0.3,
+    strafeSpeed: 10,
+    pitchSpeed: 45*Math.PI/180,
+    rollSpeed: 60*Math.PI/180,
     keys: {
-      forward: "w",
-      backward: "s",
-      left: "a",
-      right: "d",
-      up: " ",
-      down: "c"
+      pitchUp: "w",
+      pitchDown: "s",
+      strafeLeft: "q",
+      strafeRight: "e",
+      rollLeft: "a",
+      rollRight: "d",
+      thrustUp: " ",
+      thrustDown: "c"
     }
   },
   asteroidField: {
