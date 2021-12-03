@@ -28,6 +28,12 @@ export class ShipTextureSelector {
     this.rightButton.addEventListener("click", this.shiftRight.bind(this));
   }
 
+  getTextureFromColor(color) {
+    let color_idx = this.colors.indexOf(color);
+    if (color_idx === -1) return null;
+    return this.textures[color_idx];
+  }
+
   getColorChanged() {
     if (this.colorChanged) {
       this.colorChanged = false;
