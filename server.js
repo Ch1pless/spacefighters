@@ -64,6 +64,7 @@ io.on("connection", client => {
   client.on("createRoom", (color) => {
     let newRoom = createRoom();
     client.join(newRoom);
+    io.to(client.id).emit("room", newRoom);
     console.log(`Client has created room: ${newRoom}.`);
     rooms[newRoom] = new GameState();
     rooms[newRoom].addPlayer(client.id, color);

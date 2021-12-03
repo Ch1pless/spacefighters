@@ -35,15 +35,20 @@ vec3 computeAmbient(Light l) {
 
 vec3 computeSimple(Light l, vec3 V, vec3 N) {
   vec3 lightVector = (u_viewMatrix * l.position).xyz;
-  if (l.position.w > 0.0) lightVector -= fPosition;
+  float attenuation = 1.0;
+
+  if (l.position.w > 0.0) {
+    lightVector -= fPosition;
+    attenuation = clamp(10.0 / length(lightVector), 0.0, 1.0);
+  }
 
   vec3 L = normalize(lightVector);
   vec3 H = normalize(L + V);
 
   vec3 diffuseColor = u_materialColor * clamp(dot(N, L), 0.0, 1.0);
-  vec3 specularColor = u_specularColor * l.color * pow(clamp(dot(N, H), 0.0, 1.0), u_shininess); 
+  vec3 specularColor = u_specularColor * pow(clamp(dot(N, H), 0.0, 1.0), u_shininess); 
 
-  return (1.0 - u_specular) * diffuseColor + u_specular * specularColor;
+  return attenuation * l.intensity * l.color * ((1.0 - u_specular) * diffuseColor + u_specular * specularColor);
 }
 
 vec3 computeSpotlight(Light l) {

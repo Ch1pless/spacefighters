@@ -88,7 +88,7 @@ class IO {
     this.socket.on("error", this.onError);
     this.socket.on("startGame", (gameState) => { this.onGameStart(gameState); });
     this.socket.on("updateGameState", (gameState) => { this.onUpdateGameState(gameState); });
-    this.socket.on("room", (room) => { this.app.room = room; })
+    this.socket.on("room", (room) => { this.app.room = room; document.querySelector("#ui-text").innerHTML = "Room ID: " + room; })
   }
 
   async onGameStart(gameState) {
@@ -158,6 +158,11 @@ class App {
         object.material.userData.textureMap = twgl.createTexture(this.gl, {src: this.shipTextureSelector.getTextureFromColor(data.color), flipY: true}); 
       }
     });
+
+    let light = new THREE.PointLight(0xe69138, 5, 1, 1);
+    light.position.set(0, -0.2, -3);
+    ship.add(light);
+
     new THREE.Matrix4().fromArray(data.matrix.elements).decompose(ship.position, ship.quaternion, ship.scale);
 
     return ship;
@@ -259,7 +264,7 @@ class App {
     this.scene.background = 0x000000;
     this.camera = new THREE.PerspectiveCamera(45, this.gl.canvas.clientWidth / this.gl.canvas.clientHeight, 0.1, 1000);
 
-    this.initTable();
+    await this.initTable();
     this.ship = await this.initShip();
 
     this.scene.add(this.ship);
@@ -356,7 +361,7 @@ class App {
 
     await Promise.all([this.initSkybox(), this.initAsteroidField()]);
     
-    this.sun = new THREE.DirectionalLight(0xfcb0f1, 0.5);
+    this.sun = new THREE.DirectionalLight(0xfcb0f1, 1);
     this.sun.position.set(1, 1, 2);
     
     this.scene.add(new THREE.AmbientLight(0xffffff, 0.3));
