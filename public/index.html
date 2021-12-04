@@ -32,6 +32,14 @@
         </div>
       </div>
     </div>
+    <div id="win-screen" class="hide screen">
+      <h1 style="color: white">You Win!</h1>
+      <button class="return-to-menu" onclick="location.reload(); return false;">Return to Main Menu</button>
+    </div>
+    <div id="lose-screen" class="hide screen">
+      <h1 style="color: white">You Lose :(</h1>
+      <button class="return-to-menu" onclick="location.reload(); return false;">Return to Main Menu</button>
+    </div>
     <canvas id="game" style="z-index: -100"></canvas>
   </main>
   <script src="app.js"></script>

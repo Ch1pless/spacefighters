@@ -57,9 +57,7 @@ io.on("connection", client => {
 
   client.on("disconnect", () => { 
     console.log(`User ${client.id} disconnected.`)
-    // delete players existence in game
   });
-
 
   client.on("createRoom", (color) => {
     let newRoom = createRoom();
@@ -83,16 +81,32 @@ io.on("connection", client => {
     }
   });
 
+  client.on("leaveRoom", (room) => {
+    if (rooms[room]) {
+      delete rooms[room];
+    }
+    client.leave(room);
+    console.log(`Client ${client.id} left the room ${room}`);
+  });
+
   client.on("updateState", (matrix, room) => {
     rooms[room].players[client.id].matrix = matrix;
   });
 
-  client.on("fireMissile", (matrix, target, room) => {
-    rooms[room].addMissile(client.id, matrix, target);
+  client.on("updateMissile", (matrix, room) => {
+    rooms[room].updateMissile(client.id, matrix);
   });
 
   client.on("destroyMissile", (room) => {
     rooms[room].removeMissile(client.id);
+  });
+
+  client.on("lose", (collidedWithEnemy, enemyId) => {
+    if (collidedWithEnemy) {
+      io.to(enemyId).emit("lose");
+    } else {
+      io.to(enemyId).emit("win");
+    }
   })
 });
 

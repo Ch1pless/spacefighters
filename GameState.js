@@ -7,8 +7,8 @@ module.exports = class GameState {
     this.stateInverval = null;
   }
 
-  addMissile(id, matrix, target) {
-    this.missiles[id] = { matrix, target };
+  updateMissile(id, matrix) {
+    this.missiles[id] = matrix;
   }
 
   removeMissile(id) {
@@ -16,18 +16,16 @@ module.exports = class GameState {
   }
 
   addPlayer(id, color) {
+    let positions = [
+      [-8, 4, -50],
+      [8, -7, 50]
+    ];
+
+    let idx = Object.keys(this.players).length;
     this.players[id] = {
-      matrix: new THREE.Matrix4().identity(),
+      matrix: new THREE.Matrix4().setPosition(positions[idx][0], positions[idx][1], positions[idx][2]),
       color: color
     };
-    if (Object.keys(this.players).length == 2)
-      this.setupPlayers();
-  }
-
-  setupPlayers() {
-    for (const player in this.players) {
-      this.players[player].matrix.makeTranslation(0, 0, Math.random()*20-10);
-    }
   }
 
 

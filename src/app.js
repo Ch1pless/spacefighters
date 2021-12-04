@@ -7,10 +7,11 @@ import TWGLRenderer from "./engine/renderers/TWGLRenderer";
 import { PlayerController } from "./game/PlayerController";
 import { ShipTextureSelector } from "./game/ShipTextureSelector";
 import { Skybox } from "./space/Skybox";
-
+import { MTLLoader } from "three/examples/jsm/loaders/mtlloader";
 
 const IMGLoader = new THREE.ImageLoader();
 const ModelLoader = new OBJLoader();
+const MaterialLoader = new MTLLoader();
 
 const shipFiles = {
   obj: require("./assets/StarSparrow_OBJ/StarSparrow01.obj")
@@ -27,24 +28,18 @@ const skyboxFiles = {
   ]
 };
 
-const asteroidFiles = [
-  {
-    obj: require("./assets/Asteroids/Asteroid_1/ASTEROID_1_LOW_MODEL_.obj"),
-    texture: require("./assets/Asteroids/Asteroid_1/ASTEROID_LOW_POLY_1_COLOR_.png")
-  }, 
-  {
-    obj: require("./assets/Asteroids/Asteroid_2/ASTEROID_2_LOW_MODEL_.obj"),
-    texture: require("./assets/Asteroids/Asteroid_2/ASTEROID_LOW_POLY_2_COLOR_.png")
-  }, 
-  {
-    obj: require("./assets/Asteroids/Asteroid_3/ASTEROID_3_LOW_MODEL_.obj"),
-    texture: require("./assets/Asteroids/Asteroid_3/ASTEROID_LOW_POLY_3_COLOR_.png")
-  }, 
-  {
-    obj: require("./assets/Asteroids/Asteroid_4/ASTEROID_4_LOW_MODEL_.obj"),
-    texture: require("./assets/Asteroids/Asteroid_4/ASTEROID_LOW_POLY_4_COLOR_.png")
-  }
-];
+const asteroidFiles = {
+  obj: [
+    require("./assets/Asteroids/rock 1.obj"),
+    require("./assets/Asteroids/rock 2.obj"),
+    require("./assets/Asteroids/rock 3.obj"),
+    require("./assets/Asteroids/big rock 1.obj"),
+    require("./assets/Asteroids/big rock 2.obj"),
+    require("./assets/Asteroids/big rock 3.obj"),
+    require("./assets/Asteroids/big rock 4.obj")
+  ],
+  texture: require("./assets/Asteroids/Age of the Canyon.jpg")
+};
 
 const tableFiles = {
   obj: require("./assets/ModernGlassTable.obj"),
@@ -69,11 +64,12 @@ const config = {
       rollLeft: "a",
       rollRight: "d",
       thrustUp: " ",
-      thrustDown: "c"
+      thrustDown: "c",
+      fire: "f"
     }
   },
   asteroidField: {
-    fieldRadius: 200,
+    fieldRadius: 300,
     asteroidAmount: 10
   }
 };
@@ -93,11 +89,12 @@ class IO {
     this.socket.on("startGame", (gameState) => { this.onGameStart(gameState); });
     this.socket.on("updateGameState", (gameState) => { this.onUpdateGameState(gameState); });
     this.socket.on("room", (room) => { this.app.room = room; document.querySelector("#ui-text").innerHTML = "Room ID: " + room; })
+    this.socket.on("lose", () => { this.app.swapToLoseScreen(); });
+    this.socket.on("win", () => { this.app.swapToWinScreen(); });
   }
 
   async onGameStart(gameState) {
     this.currentGameState = gameState;
-    console.log(gameState.players);
     for (const player in gameState.players) {
       if (player == this.app.clientId) {
         await this.app.initPlayer(gameState.players[player]);
@@ -106,14 +103,29 @@ class IO {
         await this.app.initEnemy(gameState.players[player]);
       }
     }
-    this.app.swapScreens();
+    this.app.swapToGameScreen();
   }
 
   onUpdateGameState(gameState) {
     let enemyState = gameState.players[this.app.enemyId];
-    if (this.app.player && this.app.enemy) {
+    if (this.app.enemy) {
       new THREE.Matrix4().fromArray(enemyState.matrix.elements).decompose(this.app.enemy.position, this.app.enemy.quaternion, this.app.enemy.scale);
     }
+
+    let enemyMissile = gameState.missiles[this.app.enemyId];
+    if (enemyMissile) {
+      if (this.app.enemyMissile === null) {
+        this.app.enemyMissile = this.app.shipController.originalMissile.clone();
+        this.app.scene.add(this.app.enemyMissile);
+      }
+      new THREE.Matrix4().fromArray(enemyMissile.elements).decompose(this.app.enemyMissile.position, this.app.enemyMissile.quaternion, this.app.enemyMissile.scale);
+    } else {
+      if (this.app.enemyMissile !== null) {
+        this.app.enemyMissile.removeFromParent();
+        this.app.enemyMissile = null;
+      }
+    }
+
     this.currentGameState = gameState;
   }
 
@@ -139,6 +151,9 @@ class App {
     this.displayingReadyScene = false;
     this.displayingGameScene = false;
     this.shipTextureSelector = new ShipTextureSelector();
+
+    this.missile = null;
+    this.enemyMissile = null;
   }
 
   async init() {
@@ -159,10 +174,14 @@ class App {
       if (object.isMesh) {
         object.material.userData.textureMap = twgl.createTexture(this.gl, {src: this.shipTextureSelector.getTextureFromColor(data.color), flipY: true}); 
         object.geometry.computeBoundingSphere();
+        object.geometry.boundingSphere.set(
+          object.geometry.boundingSphere.center,
+          object.geometry.boundingSphere.radius * 0.9
+        );
       }
     });
 
-    let light = new THREE.PointLight(0xe69138, 5, 1, 1);
+    let light = new THREE.PointLight(0xe69138, 3, 1, 1);
     light.position.set(0, -0.2, -3);
     ship.add(light);
 
@@ -214,40 +233,47 @@ class App {
     this.asteroidField = new THREE.Group();
 
     const asteroid_objs = await Promise.all([
-      ModelLoader.loadAsync(asteroidFiles[0].obj),
-      ModelLoader.loadAsync(asteroidFiles[1].obj),
-      ModelLoader.loadAsync(asteroidFiles[2].obj),
-      ModelLoader.loadAsync(asteroidFiles[3].obj)
+      ModelLoader.loadAsync(asteroidFiles.obj[0]),
+      ModelLoader.loadAsync(asteroidFiles.obj[1]),
+      ModelLoader.loadAsync(asteroidFiles.obj[2]),
+      ModelLoader.loadAsync(asteroidFiles.obj[3]),
+      ModelLoader.loadAsync(asteroidFiles.obj[4]),
+      ModelLoader.loadAsync(asteroidFiles.obj[5]),
+      ModelLoader.loadAsync(asteroidFiles.obj[6])
     ]);
 
-    const asteroid_imgs = await Promise.all([
-      IMGLoader.loadAsync(asteroidFiles[0].texture),
-      IMGLoader.loadAsync(asteroidFiles[1].texture),
-      IMGLoader.loadAsync(asteroidFiles[2].texture),
-      IMGLoader.loadAsync(asteroidFiles[3].texture)
-    ]);
+    const asteroid_img = await IMGLoader.loadAsync(asteroidFiles.texture);
 
     for (let i = 0; i < asteroid_objs.length; ++i) {
       asteroid_objs[i] = asteroid_objs[i].children[0]; // set objs to mesh
-      asteroid_objs[i].material.userData.textureMap = twgl.createTexture(this.gl, {src: asteroid_imgs[i], flipY: true});
+      asteroid_objs[i].material.userData.textureMap = twgl.createTexture(this.gl, {src: asteroid_img, flipY: true});
+      asteroid_objs[i].geometry.computeBoundingBox();
+      asteroid_objs[i].geometry.center();
+      asteroid_objs[i].geometry.computeBoundingSphere();
       asteroid_objs[i].matrixAutoUpdate = false;
     }
 
     const asteroidAmount = config.asteroidField.asteroidAmount;
     const fieldRadius = config.asteroidField.fieldRadius;
 
+    const asteroidData = require("./assets/Asteroids/AsteroidSettings").default;
+
     for (let i = 0; i < asteroidAmount; ++i) {
-      const asteroid = asteroid_objs[Math.floor(Math.random()*4)].clone();
-      asteroid.scale.multiplyScalar(1 + Math.random()*4);
-      asteroid.rotation.set(Math.random()*2*Math.PI, Math.random()*2*Math.PI, Math.random()*2*Math.PI);
-      let pos = [];
-      for (let j = 0; j < 3; ++j)
-        pos.push(Math.floor(Math.random() * fieldRadius * 2 - fieldRadius));
-      asteroid.position.set(pos[0], pos[1] / 5, pos[2]);
+      const currentData = asteroidData[i];
+      const asteroid = asteroid_objs[Math.floor(currentData[0]*asteroid_objs.length)].clone();
+      asteroid.scale.multiplyScalar(1 + currentData[1]*4);
+      asteroid.rotation.set(currentData[2]*2*Math.PI, currentData[3]*2*Math.PI, currentData[4]*2*Math.PI);
+      asteroid.position.set(
+        Math.floor(currentData[5] * fieldRadius * 2 - fieldRadius), 
+        Math.floor(currentData[6] * fieldRadius * 2 - fieldRadius) / 5, 
+        Math.floor(currentData[7] * fieldRadius * 2 - fieldRadius)
+      );
       asteroid.updateMatrix();
       asteroid.matrixAutoUpdate = false;
-      asteroid.geometry.computeBoundingSphere();
-      asteroid.geometry.boundingSphere.center.copy(asteroid.position);
+      asteroid.geometry.boundingSphere.set(
+        asteroid.position,
+        asteroid.geometry.boundingSphere.radius
+      );
       this.asteroidField.add(asteroid);
     }
     this.scene.add(this.asteroidField);
@@ -348,15 +374,10 @@ class App {
     });
 
     delete this.ui;
-    delete this.createRoomBtn;
-    delete this.joinRoomBtn;
-    delete this.joinRoomId;
     delete this.table;
     delete this.ship;
     delete this.scene;
     delete this.camera;
-
-    
 
     this.displayingReadyScene = false;
   }
@@ -379,10 +400,17 @@ class App {
 
     this.setPlayerCamera();
 
+    this.shipController.setScene(this.scene);
+    this.shipController.setEnemy(this.enemy);
+
     this.scene.add(this.player);
     this.scene.add(this.enemy);
 
-    this.missiles = {};
+    let worldPos = new THREE.Vector3();
+    this.enemy.getWorldPosition(worldPos);
+    this.player.lookAt(worldPos);
+    this.player.getWorldPosition(worldPos);
+    this.enemy.lookAt(worldPos);
 
     requestAnimationFrame(this.drawGameScene.bind(this));
 
@@ -413,6 +441,19 @@ class App {
     this.detectPlayerCollision();
 
     this.socket.emit("updateState", this.player.matrix, this.room);
+
+    if (this.shipController.getMissileCreated()) {
+      this.missile = this.shipController.missile;
+    }
+
+    if (this.shipController.getMissileDestroyed()) {
+      this.missile = null;
+      this.socket.emit("destroyMissile", this.room);
+    }
+
+    if (this.missile !== null) {
+      this.socket.emit("updateMissile", this.missile.matrix, this.room);
+    }
     
     requestAnimationFrame(this.drawGameScene.bind(this));
   }
@@ -420,8 +461,6 @@ class App {
   stopGameScene() {
     this.displayingGameScene = false;
   }
-
-
 
   updateBoundingSphere(object) {
     const newCenter = object.position;
@@ -438,36 +477,53 @@ class App {
   detectPlayerCollision() {
     this.updateBoundingSphere(this.player);
     this.updateBoundingSphere(this.enemy);
-
-    if (this.missiles[this.enemyId])
-      this.updateBoundingSphere(this.missiles[this.enemyId]);
-
-    let to_check = [];
-
-    let playerMesh;
-    this.player.traverse(object => {
-      if (object.isMesh)
-        playerMesh = object;
-    })
-
-    this.scene.traverse(object => {
-      if (object != playerMesh && object.isMesh && object.geometry.boundingSphere !== null)
-        to_check.push(object);
-    });
-
-    let playerBoundingSphere = null;
-    this.player.traverse(child => {
-      if (child.isMesh && child.geometry.boundingSphere !== null)
-        playerBoundingSphere = child.geometry.boundingSphere;
-    });
-
-    for (const mesh of to_check) {
-      if (playerBoundingSphere.intersectsSphere(mesh.geometry.boundingSphere)) {
-        console.log(" Collision Detected with ");
-        console.log(mesh.geometry.boundingSphere.center.toArray());
-      }
-    }
     
+    if (this.enemyMissile !== null) {
+      this.updateBoundingSphere(this.enemyMissile);
+    }
+
+    let playerMesh, playerBoundingSphere;
+    this.player.traverse(object => {
+      if (object.isMesh) {
+        playerMesh = object;
+        if (object.geometry.playerBoundingSphere !== null)
+          playerBoundingSphere = object.geometry.boundingSphere;
+      }
+    });
+
+    let enemyMesh, enemyBoundingSphere;
+    this.enemy.traverse(object => {
+      if (object.isMesh) {
+        enemyMesh = object;
+        if (object.geometry.boundingSphere !== null)
+          enemyBoundingSphere = object.geometry.boundingSphere;
+      }
+    });
+
+    this.asteroidField.traverse(asteroid => {
+      if (asteroid.isMesh && asteroid.geometry.boundingSphere !== null) {
+        if (playerBoundingSphere.intersectsSphere(asteroid.geometry.boundingSphere)) {
+          this.socket.emit("lose", false, this.enemyId);
+          this.swapToLoseScreen();
+        }
+      }
+    });
+
+    if (this.enemyMissile !== null) {
+      this.enemyMissile.traverse(missileMesh => {
+        if (missileMesh.isMesh && missileMesh.geometry.boundingSphere !== null) {
+          if (playerBoundingSphere.intersectsSphere(missileMesh.geometry.boundingSphere)) {
+            this.socket.emit("lose", false, this.enemyId);
+            this.swapToLoseScreen();
+          }
+        }
+      });
+    }
+
+    if (playerBoundingSphere.intersectsSphere(enemyBoundingSphere)) {
+      this.socket.emit("lose", true, this.enemyId);
+      this.swapToLoseScreen();
+    }
 
   }
 
@@ -484,9 +540,33 @@ class App {
     this.socket.emit("joinRoom", this.shipTextureSelector.currentColor(), roomId);
   }
 
-  swapScreens() {
+  swapToReadyScreen() {
+    this.socket.emit("leaveRoom", this.room);
+
+    this.createRoomBtn.classList.remove("hide");
+    this.joinRoomBtn.classList.remove("hide");
+    this.joinRoomId.classList.remove("hide");
+    document.querySelector("#color-changer").classList.remove("hide");
+    document.querySelector("#ui-text").innerHTML = "Pick your spaceship color";
+
+    document.querySelector("#win-screen").classList.add("hide");
+    document.querySelector("#lose-screen").classList.add("hide");
+    this.startReadyScene();
+  }
+
+  swapToGameScreen() {
     this.stopReadyScene();
     this.startGameScene();
+  }
+
+  swapToLoseScreen() {
+    this.stopGameScene();
+    document.querySelector("#lose-screen").classList.toggle("hide");
+  }
+
+  swapToWinScreen() {
+    this.stopGameScene();
+    document.querySelector("#win-screen").classList.toggle("hide");
   }
 }
 
